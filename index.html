@@ -36,7 +36,7 @@
     #header, #footer { width: 100%; }
     main { flex: 1; display: block; }
 
-    /* عنوان داخلي (بديل عن الهيدر القديم كي لا يتكرر) */
+    /* عنوان داخلي */
     .page-title{
       background-color: var(--surface);
       color: var(--text-main);
@@ -80,8 +80,8 @@
     .top-bar button:active { transform: translateY(1px); }
 
     /* توحيد لون الأيقونات */
-    .top-bar i { color: #fff; }               /* داخل الأزرار أبيض */
-    #userInfo i { color: var(--moe-dark); }   /* بجانب اسم المستخدم */
+    .top-bar i { color: #fff; }
+    #userInfo i { color: var(--moe-dark); }
     .fa, .fas, .far, .fal, .fab { vertical-align: -1px; }
 
     #userInfo {
@@ -131,13 +131,23 @@
       white-space: normal; word-break: break-word; padding: 10px;
       border: 1px solid #e0e0e0; text-align: center; vertical-align: middle;
     }
-    tr:nth-child(even) { background-color: #edf9f7; } /* صفوف متناوبة بلون فيروزي فاتح */
+    tr:nth-child(even) { background-color: #edf9f7; }
 
     #totalCount { text-align: center; font-weight: bold; margin-bottom: 20px; color: var(--moe-dark); }
     #tooShort { color:#c62828; font-weight:bold; display:none; }
     #loadingMessage { color:#b45309; display:none; }
     #schoolCount { display:none; }
     #noResults { display:none; color:#b91c1c; text-align:center; font-weight:bold; }
+
+    /* زر الدخول أثناء التحميل */
+    .btn-loading{ opacity:.85; cursor: wait; }
+    .btn-loading .spinner{
+      width:16px; height:16px; border:2px solid rgba(255,255,255,.6);
+      border-top-color:#fff; border-radius:50%;
+      display:inline-block; margin-inline-start:8px; vertical-align:-3px;
+      animation:spin .8s linear infinite;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
   </style>
 </head>
 <body>
@@ -145,10 +155,9 @@
   <div id="header"></div>
 
   <main>
-    <!-- عنوان داخلي فقط (لم يعد هيدرًا ثانيًا) -->
-    <div class=>
-   
-
+    <div class="page-title">
+      <h1>الإدارة العامة للتعليم بمنطقة عسير</h1>
+      <h2>قسم الأمن والسلامة والمرافق</h2>
     </div>
 
     <div class="top-bar">
@@ -196,12 +205,12 @@
   <script>
     // تحميل الهيدر والفوتر من ملفات خارجية مع تعامل أخطاء بسيط
     document.addEventListener('DOMContentLoaded', () => {
-      fetch('header.html', {cache: 'no-cache'})
+      fetch('./header.html', {cache: 'no-cache'})
         .then(r => r.ok ? r.text() : Promise.reject(r.status))
         .then(html => { document.getElementById('header').innerHTML = html; })
         .catch(err => console.warn('تعذر تحميل الهيدر:', err));
 
-      fetch('footer.html', {cache: 'no-cache'})
+      fetch('./footer.html', {cache: 'no-cache'})
         .then(r => r.ok ? r.text() : Promise.reject(r.status))
         .then(html => { document.getElementById('footer').innerHTML = html; })
         .catch(err => console.warn('تعذر تحميل الفوتر:', err));
@@ -230,17 +239,26 @@
         loginOverlay.innerHTML = `
           <div style="background:#fff;padding:30px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);text-align:center;max-width:400px;width:100%;">
             <h2 style="color:#006c35;margin-bottom:20px;">🔐 تسجيل الدخول</h2>
-            <input id="userCodeInput" type="text" placeholder="أدخل رقم المستخدم" style="padding:12px;font-size:16px;width:100%;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;"/>
-            <button id="loginBtn" style="background-color:#006c35;color:#fff;padding:12px 20px;font-size:16px;border:none;border-radius:6px;cursor:pointer;">دخول</button>
-            <p id="loginError" style="color:red;margin-top:10px;display:none;">❌ الرقم غير مصرح به</p>
+            <input id="userCodeInput" type="text" inputmode="numeric" autocomplete="off"
+                   placeholder="أدخل السجل المدني" 
+                   style="padding:12px;font-size:16px;width:100%;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;"/>
+            <button id="loginBtn" style="background-color:#006c35;color:#fff;padding:12px 20px;font-size:16px;border:none;border-radius:6px;cursor:pointer;min-width:140px;">
+              دخول
+            </button>
+            <p id="loginError" style="color:red;margin-top:10px;display:none;" aria-live="polite">❌ الرقم غير مصرح به</p>
           </div>
         `;
         document.body.appendChild(loginOverlay);
+
+        // دخول بالزر أو بالإنتر
         document.getElementById('loginBtn').addEventListener('click', verifyUserCode);
+        document.getElementById('userCodeInput').addEventListener('keydown', (e)=>{
+          if(e.key==='Enter'){ verifyUserCode(); }
+        });
       }
     });
 
-    // جلب البيانات والفلترة (كما في كودك الأصلي)
+    // جلب البيانات والفلترة
     let schoolData = [];
     function fetchSchoolData() {
       document.getElementById("loadingMessage").style.display = 'block';
@@ -303,8 +321,30 @@
       });
       displayResults(filtered);
     }
+
+    // ✅ زر الدخول بعرض "تحميل" أثناء التحقق
     function verifyUserCode() {
-      const userCode = document.getElementById("userCodeInput").value.trim();
+      const input = document.getElementById("userCodeInput");
+      const btn   = document.getElementById("loginBtn");
+      const err   = document.getElementById("loginError");
+
+      const userCode = (input?.value || "").trim();
+      err.style.display = 'none';
+
+      if (!userCode) {
+        err.textContent = "⚠️ الرجاء إدخال السجل المدني";
+        err.style.display = 'block';
+        return;
+      }
+
+      // حالة التحميل: تعطيل العناصر + إظهار سبينر داخل الزر
+      btn.disabled = true;
+      input.disabled = true;
+      btn.classList.add('btn-loading');
+      const original = btn.dataset.originalText || btn.innerHTML;
+      btn.dataset.originalText = original;
+      btn.innerHTML = 'جاري التحقق <span class="spinner" aria-hidden="true"></span>';
+
       fetch(`https://script.google.com/macros/s/AKfycbwmLZXbtQQuIui6c-zQTjQDsT4OPFM_YWWR3taupQ5A2hUg0TWXyZRBsxvsc56uMrDc/exec?code=${encodeURIComponent(userCode)}`)
         .then(r => r.json())
         .then(data => {
@@ -316,11 +356,23 @@
             sessionStorage.setItem("loginTime", Date.now());
             location.reload();
           } else {
-            document.getElementById("loginError").style.display = 'block';
+            err.textContent = "❌ الرقم غير مصرح به";
+            err.style.display = 'block';
           }
         })
-        .catch(()=>{ document.getElementById("loginError").style.display='block'; });
+        .catch(() => {
+          err.textContent = "⚠️ تعذّر الاتصال، حاول مجددًا.";
+          err.style.display = 'block';
+        })
+        .finally(() => {
+          // إزالة حالة التحميل إن لم يتم التحويل بالنجاح
+          btn.classList.remove('btn-loading');
+          btn.innerHTML = btn.dataset.originalText || 'دخول';
+          btn.disabled = false;
+          input.disabled = false;
+        });
     }
+
     function logout(){ sessionStorage.clear(); location.reload(); }
   </script>
 </body>
